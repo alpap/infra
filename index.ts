@@ -480,7 +480,7 @@ const policy = new aws.iam.Policy('service-user-policy', {
         {
           Sid: 'ServerUserAccess',
           Effect: 'Allow',
-          Action: ['s3:PutObject', 's3:GetObject'],
+          Action: ['s3:PutObject', 's3:GetObject', 's3:DeleteBucket', 's3:CreateBucket'],
           Resource: [arn, arn + '/*'],
         },
       ],
