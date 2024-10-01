@@ -31,30 +31,12 @@ new aws.ec2.VpcEndpoint('s3-vpc-endpoint', {
     .apply(JSON.stringify),
 })
 
-// Create buckets
-const artifact_bucket = new aws.s3.Bucket('nexus', {
-  bucket: 'nexus-akfjhie33',
-  acl: 'private',
-}) //, undefined, { protect: true }) // if the bucket is protected you have to remove this part apply (pulumi up) then delete (pulumi down)
-// give access to buckt from internal network
-const nexus_bucket_access = new aws.s3.AccessPoint('nexus-access-point', {
-  accountId: pulumi.output(aws.getCallerIdentity()).accountId,
-  bucket: artifact_bucket.bucket,
-  name: 'nexus-access-point',
-  publicAccessBlockConfiguration: {
-    blockPublicAcls: true,
-    ignorePublicAcls: true,
-    blockPublicPolicy: true,
-    restrictPublicBuckets: true,
-  },
-})
-
 const vault_bucket = new aws.s3.Bucket('vault', {
   bucket: 'vault-akfjhie33',
   acl: 'private',
 })
 
-// give access to buckt from internal network
+// give access to bucket from internal network
 const vault_bucket_access = new aws.s3.AccessPoint('vault-access-point', {
   accountId: pulumi.output(aws.getCallerIdentity()).accountId,
   bucket: vault_bucket.bucket,
@@ -90,7 +72,6 @@ const nexus_image = new awsx.ecr.Image('nexus', {
 // Create ecs cluster
 const cluster = new aws.ecs.Cluster('cluster', {})
 
-// Create vault security group
 const vault_securityGroup = new aws.ec2.SecurityGroup('vault', {
   vpcId: main.vpc.id,
   ingress: [
@@ -124,6 +105,11 @@ const s3role = new aws.iam.Role('vault_role', {
             {
               Effect: 'Allow',
               Action: [
+                'kms:Encrypt',
+                'kms:Decrypt',
+                'kms:GenerateDataKey',
+                'kms:ListKeys',
+                'kms:DescribeKey',
                 's3:ListBucket',
                 's3:GetBucketLocation',
                 's3:GetObject',
@@ -132,11 +118,12 @@ const s3role = new aws.iam.Role('vault_role', {
                 's3:PutObjectAcl',
                 's3:DeleteObject',
                 's3:DeleteObjects',
-                'kms:Encrypt',
-                'kms:Decrypt',
-                'kms:GenerateDataKey',
-                'kms:ListKeys',
-                'kms:DescribeKey',
+                's3:GetLifecycleConfiguration',
+                's3:PutLifecycleConfiguration',
+                's3:PutObjectTagging',
+                's3:GetObjectTagging',
+                's3:DeleteObjectTagging',
+                's3:GetBucketPolicy',
               ],
               Resource: [arn, `${arn}/*`],
             },
@@ -286,6 +273,7 @@ main.privateSubnetIds.apply((ids) =>
   }),
 )
 
+// create a backup Vault
 const backupVault = new aws.backup.Vault('nexus-backup-vault', {
   name: 'nexus-backup-vault',
 })
@@ -441,6 +429,12 @@ const nexus = new awsx.ecs.FargateService('nexus_service', {
           containerPort: 8085,
         },
       ],
+      environment: [
+        {
+          name: 'NEXUS_SECURITY_RANDOMPASSWORD',
+          value: 'false',
+        },
+      ],
     },
     volumes: [
       {
@@ -451,4 +445,84 @@ const nexus = new awsx.ecs.FargateService('nexus_service', {
       },
     ],
   },
+})
+
+// Create buckets
+const artifact_bucket = new aws.s3.Bucket('nexus', {
+  bucket: 'nexus-akfjhie33',
+  acl: 'private',
+})
+//, undefined, { protect: true }) // if the bucket is protected you have to remove this part apply (pulumi up) then delete (pulumi down)
+
+// give access to bucket from internal network
+const nexus_bucket_access = new aws.s3.AccessPoint('nexus-access-point', {
+  accountId: pulumi.output(aws.getCallerIdentity()).accountId,
+  bucket: artifact_bucket.bucket,
+  name: 'nexus-access-point',
+  publicAccessBlockConfiguration: {
+    blockPublicAcls: true,
+    ignorePublicAcls: true,
+    blockPublicPolicy: true,
+    restrictPublicBuckets: true,
+  },
+})
+
+const user = new aws.iam.User('service-user', {
+  name: 'service-user',
+})
+
+const policy = new aws.iam.Policy('service-user-policy', {
+  policy: vault_bucket.arn.apply((arn) =>
+    JSON.stringify({
+      Version: '2012-10-17',
+      Id: 'ServiceUserPolicy',
+      Statement: [
+        {
+          Sid: 'ServerUserAccess',
+          Effect: 'Allow',
+          Action: ['s3:PutObject', 's3:GetObject'],
+          Resource: [arn, arn + '/*'],
+        },
+      ],
+    }),
+  ),
+})
+
+const policyAttachment = new aws.iam.UserPolicyAttachment('service-user-policy-attachment', {
+  user: user.name,
+  policyArn: policy.arn,
+})
+
+const artifact_bucket_policy = pulumi.all([artifact_bucket.arn, user.arn]).apply(([bucketArn, userArn]) =>
+  JSON.stringify({
+    Version: '2012-10-17',
+    Id: 'S3BlobStorePolicy',
+    Statement: [
+      {
+        Sid: 'S3BlobStoreAccess',
+        Effect: 'Allow',
+        Principal: {
+          AWS: userArn,
+        },
+        Action: [
+          's3:PutObject',
+          's3:GetObject',
+          's3:DeleteObject',
+          's3:ListBucket',
+          's3:GetLifecycleConfiguration',
+          's3:PutLifecycleConfiguration',
+          's3:PutObjectTagging',
+          's3:GetObjectTagging',
+          's3:DeleteObjectTagging',
+          's3:GetBucketPolicy',
+        ],
+        Resource: [bucketArn, bucketArn + '/*'],
+      },
+    ],
+  }),
+)
+
+const artifact_bucket_policy_attach = new aws.s3.BucketPolicy('bucketPolicy', {
+  bucket: artifact_bucket.bucket,
+  policy: artifact_bucket_policy,
 })
