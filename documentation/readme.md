@@ -19,6 +19,12 @@ export AWS_PROFILE="default"
 pulumi up
 ```
 
+## After deployment
+
+Get the bucket name and add the config to ./vault_docker/config.hcl
+
+Then redeploy for vault to get the configuration
+
 ## Moving to another cloud
 
 - Create a new infrastructure with pulumi

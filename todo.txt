@@ -1,0 +1,9 @@
+deploy infra  OK
+Static IP => load ballancer
+add health checks
+KMS unlock
+SSL
+automation for auto update of twingate
+github action with tailgate and vault and nexus
+doc about restoring ebs & aws cli script
+container upgrade script
