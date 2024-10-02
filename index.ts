@@ -168,24 +168,8 @@ const vault = new awsx.ecs.FargateService('vault', {
       ],
       environment: [
         {
-          name: 'AWS_ACCESS_KEY_ID',
-          value: process.env.AWS_ID,
-        },
-        {
-          name: 'AWS_DEFAULT_REGION',
-          value: process.env.AWS_REGION,
-        },
-        {
           name: 'AWS_S3_BUCKET',
           value: 'vault-akfjhie33',
-        },
-        {
-          name: 'AWS_SECRET_ACCESS_KEY',
-          value: process.env.AWS_SECRET,
-        },
-        {
-          name: 'VAULT_AWSKMS_SEAL_KEY_ID',
-          value: '${AWS_KMS_SEAL_KEY_ID}',
         },
       ],
     },

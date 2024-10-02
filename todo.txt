@@ -1,9 +1,13 @@
-deploy infra  OK
-Static IP => load ballancer
-add health checks
-KMS unlock
+# Todo
 SSL
-automation for auto update of twingate
+Static IP => load ballancer problem twingate not picking up lb
+add health checks
+KMS unlock?
+
+# Additional
 github action with tailgate and vault and nexus
+
+# Docs
+automation for auto update of twingate
 doc about restoring ebs & aws cli script
 container upgrade script
