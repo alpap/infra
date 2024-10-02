@@ -10,7 +10,7 @@ const main = new awsx.ec2.Vpc('main', {
   },
 })
 
-// Add an s3 endpoint
+// Add an s3 endpoint, gives internal access to s3
 new aws.ec2.VpcEndpoint('s3-vpc-endpoint', {
   vpcId: main.vpc.id,
   vpcEndpointType: 'Gateway',
