@@ -5,6 +5,7 @@ import * as awsx from '@pulumi/awsx'
 // create VPC
 const main = new awsx.ec2.Vpc('main', {
   numberOfAvailabilityZones: 1,
+  enableDnsHostnames: true,
   tags: {
     Name: 'main',
   },
@@ -212,7 +213,8 @@ const twingate = new awsx.ecs.FargateService('twingate', {
     cpu: '1024',
     container: {
       name: 'twingate-aws',
-      image: 'twingate/connector:1.70.0',
+      image: '890742606614.dkr.ecr.eu-north-1.amazonaws.com/skytem-cbd9248:twingate',
+      // image: 'twingate/connector:1.70.0',
       memory: 2048,
       cpu: 1024,
       environment: [
@@ -238,23 +240,16 @@ const twingate = new awsx.ecs.FargateService('twingate', {
 })
 
 // Create an EFS file system to attach to nexus
-const efsFileSystem = new aws.efs.FileSystem('nexus-file-system', {
-  performanceMode: 'generalPurpose',
-  encrypted: true,
-  tags: {
-    Name: 'nexus-file-system',
+const efsFileSystem = new aws.efs.FileSystem(
+  'nexus-file-system',
+  {
+    performanceMode: 'generalPurpose',
+    encrypted: true,
+    tags: {
+      Name: 'nexus-file-system',
+    },
   },
-})
-
-// Attach to all subnets
-main.privateSubnetIds.apply((ids) =>
-  ids.map((id) => {
-    new aws.efs.MountTarget('nexus-mount', {
-      fileSystemId: efsFileSystem.id,
-      subnetId: id,
-      securityGroups: [nexus_securityGroup.id],
-    })
-  }),
+  { retainOnDelete: true },
 )
 
 // create a backup Vault
@@ -366,6 +361,17 @@ const nexus_securityGroup = new aws.ec2.SecurityGroup('nexus', {
     },
   ],
 })
+
+// Attach to all subnets
+main.privateSubnetIds.apply((ids) =>
+  ids.map((id) => {
+    new aws.efs.MountTarget('nexus-mount', {
+      fileSystemId: efsFileSystem.id,
+      subnetId: id,
+      securityGroups: [nexus_securityGroup.id],
+    })
+  }),
+)
 
 const nexus = new awsx.ecs.FargateService('nexus_service', {
   cluster: cluster.arn,

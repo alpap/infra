@@ -16,5 +16,4 @@ COPY --from=certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certifica
 COPY --from=builder /vault .
 COPY vault-config.hcl /etc/vault/vault-config.hcl
 
-
 ENTRYPOINT ["/vault", "server", "-config", "/etc/vault/vault-config.hcl"]
