@@ -1,0 +1,84 @@
+name: Vault OIDC
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+jobs:
+  # This will work both in a PR and from the main branch
+  vault-oidc:
+    runs-on: ubuntu-latest
+    environment: nonprod
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: twingate/github-action@V1.1
+        with:
+          service-key: ${{ secrets.TWINGATE }}
+
+      # - name: Troubleshooting
+      # run: |
+      #   curl -sSL -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL" | \
+      #   jq "{ jwt: .value, role: \"$VAULT_ROLE\" }" > ./token.json
+
+      #   echo 'GitHub Actions Token Claims'
+      #   cat ./token.json | jq -r '.jwt | split(".") | .[1] | @base64d' | jq
+
+      #   echo 'Vault Login Response'
+      #   curl -sSLf -X POST -H "Content-Type: application/json" -H "X-Vault-Namespace: admin" --data @token.json $VAULT_URL/v1/auth/$VAULT_AUTH_PATH/login
+
+      #   # Remove the token file when we're done (if we don't fail)
+      #   rm ./token.json
+      # env:
+      #   VAULT_URL: http://vault.local:8200
+      #   VAULT_AUTH_PATH: jwt
+      #   VAULT_ROLE: myproject-production
+
+      - name: Import Secrets
+        uses: hashicorp/vault-action@v2.4.0
+        id: secrets
+        with:
+          exportEnv: false
+          exportToken: true
+          url: http://vault.local:8200 # pass it as org secret
+          tlsSkipVerify: true
+          # path: github-actions
+          method: jwt
+          role: myproject-production
+          secrets: |
+            secrets/data/nexus password | NEXUS_PASSWORD ;
+            secrets/data/nexus username | NEXUS_USERNAME ;
+
+      - uses: actions/checkout@v3
+
+      - name: Nexus REST
+        run: |
+          curl -vv -u $NEXUS_USERNAME:$NEXUS_PASSWORD --upload-file './vite.config.ts' http://nexus.local:8081/repository/binary/1.0.0/config.ts
+          ls -la
+          curl -u $NEXUS_USERNAME:$NEXUS_PASSWORD http://nexus.local:8081/repository/binary/1.0.0/config.ts -vv -o config.ts
+          ls -la
+        env:
+          NEXUS_USERNAME: ${{ steps.secrets.outputs.NEXUS_USERNAME }}
+          NEXUS_PASSWORD: ${{ steps.secrets.outputs.NEXUS_PASSWORD }}
+
+      # - name: Nexus Repository Publisher for GitHub Actions
+      #   uses: sonatype-nexus-community/nexus-repo-github-action@master
+      #   with:
+      #     serverUrl: http://nexus.local:8081 # pass it as org secret
+      #     username: ${{ env.NEXUS_USERNAME }}
+      #     password: ${{ env.NEXUS_PASSWORD }}
+      #     format: raw
+      #     repository: binary
+      #     coordinates: version=1.0.0
+      #     assets: extension=ts
+      #     filename: ./vite.config.ts
+      #   env:
+      #     NEXUS_USERNAME: ${{ steps.secrets.outputs.NEXUS_USERNAME }}
+      #     NEXUS_PASSWORD: ${{ steps.secrets.outputs.NEXUS_PASSWORD }}
